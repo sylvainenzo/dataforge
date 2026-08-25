@@ -24,7 +24,7 @@ export function Topbar({ user }: { user: User | null }) {
 
       <button
         onClick={() => setCommandPaletteOpen(true)}
-        className="flex h-9 flex-1 max-w-md items-center gap-2 rounded-lg border border-border bg-surface px-3 text-sm text-text-muted hover:border-primary/50"
+        className="flex h-9 flex-1 max-w-md items-center gap-2 rounded-lg border border-border bg-surface px-3 text-sm text-text-muted transition-colors hover:border-primary/50 hover:text-text"
       >
         <Search className="h-4 w-4 shrink-0" />
         <span className="truncate whitespace-nowrap">{t('topbar.searchPlaceholder')}</span>
@@ -32,7 +32,7 @@ export function Topbar({ user }: { user: User | null }) {
       </button>
 
       <div className="ml-auto flex items-center gap-2">
-        <Button variant="secondary" size="sm" onClick={() => setAiTutorOpen(true)}>
+        <Button variant="secondary" size="sm" onClick={() => setAiTutorOpen(true)} className="border-primary/30">
           <Sparkles className="h-3.5 w-3.5 text-primary" /> {t('topbar.aiTutor')}
         </Button>
         <Button variant="ghost" size="sm" onClick={toggleTheme} aria-label={t('topbar.toggleTheme')}>
@@ -46,7 +46,7 @@ export function Topbar({ user }: { user: User | null }) {
             </Button>
             <button
               onClick={() => navigate('/settings')}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-soft font-mono text-xs font-semibold text-primary"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-forge font-mono text-xs font-semibold text-white shadow-glow transition-transform hover:scale-105"
               title={user.display_name ?? user.email}
             >
               {(user.display_name ?? user.email).slice(0, 2).toUpperCase()}

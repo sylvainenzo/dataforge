@@ -26,11 +26,12 @@ export function DashboardPage() {
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-bold text-text">
+      <div className="relative overflow-hidden rounded-xl border border-border bg-gradient-card p-6 shadow-card">
+        <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-gradient-forge opacity-20 blur-3xl" />
+        <h1 className="relative text-xl font-bold text-text">
           {t('dashboard.welcome')}{user ? `, ${user.display_name ?? user.email.split('@')[0]}` : ''}
         </h1>
-        <div className="mt-2 flex items-center gap-2">
+        <div className="relative mt-2 flex items-center gap-2">
           {user?.roles.map((role) => (
             <Badge key={role} tone="primary">
               {role}
@@ -123,7 +124,9 @@ export function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>{t('dashboard.courses')}</CardTitle>
-            <BookOpen className="h-4 w-4 text-text-muted" />
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-soft">
+              <BookOpen className="h-4 w-4 text-primary" />
+            </div>
           </CardHeader>
           {coursesLoading ? (
             <Skeleton className="h-24" />
@@ -155,7 +158,9 @@ export function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>{t('dashboard.labs')}</CardTitle>
-            <FlaskConical className="h-4 w-4 text-text-muted" />
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-soft">
+              <FlaskConical className="h-4 w-4 text-accent" />
+            </div>
           </CardHeader>
           <div className="space-y-2">
             <Link to="/labs" className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm transition-colors hover:bg-surface">
@@ -168,7 +173,9 @@ export function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>{t('dashboard.flashcards')}</CardTitle>
-            <Sparkles className="h-4 w-4 text-text-muted" />
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-spark-soft">
+              <Sparkles className="h-4 w-4 text-spark" />
+            </div>
           </CardHeader>
           <Link to="/flashcards" className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm transition-colors hover:bg-surface">
             <span className="font-medium text-text">{t('dashboard.reviewDueCards')}</span>
@@ -179,7 +186,9 @@ export function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>{t('dashboard.datasets')}</CardTitle>
-            <Database className="h-4 w-4 text-text-muted" />
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-info-soft">
+              <Database className="h-4 w-4 text-info" />
+            </div>
           </CardHeader>
           <Link to="/datasets" className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm transition-colors hover:bg-surface">
             <span className="font-medium text-text">{t('dashboard.uploadAndExplore')}</span>

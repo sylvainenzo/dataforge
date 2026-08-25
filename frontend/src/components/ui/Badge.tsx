@@ -1,11 +1,12 @@
 import type { HTMLAttributes } from 'react'
 import { cn } from '@/lib/cn'
 
-type Tone = 'primary' | 'accent' | 'success' | 'warning' | 'error' | 'info' | 'neutral'
+type Tone = 'primary' | 'accent' | 'spark' | 'success' | 'warning' | 'error' | 'info' | 'neutral'
 
 const toneStyles: Record<Tone, string> = {
   primary: 'bg-primary-soft text-primary',
   accent: 'bg-accent-soft text-accent',
+  spark: 'bg-spark-soft text-spark',
   success: 'bg-success-soft text-success',
   warning: 'bg-warning-soft text-warning',
   error: 'bg-error-soft text-error',
