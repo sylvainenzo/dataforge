@@ -1,0 +1,27 @@
+# Local development only. Phase 1 §26 recommends managed Postgres/Redis in
+# production — see docker-compose.prod.yml for the full production stack
+# (written in Phase 15, not built/run — no Docker in this dev environment).
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dataforge
+      POSTGRES_PASSWORD: dataforge
+      POSTGRES_DB: dataforge_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - dataforge_postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - dataforge_redis_data:/data
+
+volumes:
+  dataforge_postgres_data:
+  dataforge_redis_data:

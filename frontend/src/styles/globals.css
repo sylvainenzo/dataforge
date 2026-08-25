@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+/*
+ * DataForge design tokens, Phase 1 doc sections 30/31. Dark-first
+ * "developer tool + data lab" palette; the light theme is derived from the
+ * same token set, not a separate design, so both stay maintainable
+ * together.
+ *
+ * Runtime values live under --df-* and swap with [data-theme]. The Tailwind
+ * theme block below (see the "theme" at-rule further down this file) maps
+ * its own color/font utility-generating names onto those --df-* variables,
+ * kept as two separate namespaces so the mapping does not become
+ * self-referential.
+ */
+:root {
+  --df-bg: #0b0e14;
+  --df-surface: #11151d;
+  --df-card: #141924;
+  --df-border: #242b3a;
+  --df-text: #e7e9f0;
+  --df-text-muted: #8d95ab;
+
+  --df-primary: #8b85ff;
+  --df-primary-soft: #1c1a3a;
+  --df-accent: #35d6c1;
+  --df-accent-soft: #0f2c29;
+
+  --df-success: #4ade80;
+  --df-success-soft: #12291b;
+  --df-warning: #f0b84e;
+  --df-warning-soft: #332711;
+  --df-error: #f2636f;
+  --df-error-soft: #391a1f;
+  --df-info: #6fb2ef;
+  --df-info-soft: #122536;
+}
+
+:root[data-theme='light'] {
+  --df-bg: #f7f8fa;
+  --df-surface: #ffffff;
+  --df-card: #ffffff;
+  --df-border: #e1e4ea;
+  --df-text: #12151c;
+  --df-text-muted: #5b6472;
+
+  --df-primary: #5850ec;
+  --df-primary-soft: #eeedfd;
+  --df-accent: #0f9488;
+  --df-accent-soft: #e3f6f3;
+
+  --df-success: #16a34a;
+  --df-success-soft: #eafaf0;
+  --df-warning: #b4790a;
+  --df-warning-soft: #fbf0dc;
+  --df-error: #c22b3a;
+  --df-error-soft: #fbe6e8;
+  --df-info: #2563a8;
+  --df-info-soft: #e6effa;
+}
+
+@theme {
+  --color-bg: var(--df-bg);
+  --color-surface: var(--df-surface);
+  --color-card: var(--df-card);
+  --color-border: var(--df-border);
+  --color-text: var(--df-text);
+  --color-text-muted: var(--df-text-muted);
+  --color-primary: var(--df-primary);
+  --color-primary-soft: var(--df-primary-soft);
+  --color-accent: var(--df-accent);
+  --color-accent-soft: var(--df-accent-soft);
+  --color-success: var(--df-success);
+  --color-success-soft: var(--df-success-soft);
+  --color-warning: var(--df-warning);
+  --color-warning-soft: var(--df-warning-soft);
+  --color-error: var(--df-error);
+  --color-error-soft: var(--df-error-soft);
+  --color-info: var(--df-info);
+  --color-info-soft: var(--df-info-soft);
+
+  --font-sans: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+}
+
+* {
+  border-color: var(--df-border);
+}
+
+body {
+  background: var(--df-bg);
+  color: var(--df-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,5 @@
+.venv/
+sandbox-env/
+__pycache__/
+*.pyc
+.env

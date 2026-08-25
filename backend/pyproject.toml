@@ -1,0 +1,67 @@
+[project]
+name = "dataforge-backend"
+version = "0.2.0"
+description = "DataForge Core API — database layer (Phase 2) + API & auth foundations (Phase 3)"
+requires-python = ">=3.11"
+dependencies = [
+    "sqlalchemy>=2.0.36",
+    "alembic>=1.14.0",
+    "psycopg[binary]>=3.2.3",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.6.0",
+    "pydantic[email]>=2.9.0",
+    "pgvector>=0.3.6",
+    "python-dotenv>=1.0.1",
+    "fastapi>=0.115.5",
+    "uvicorn[standard]>=0.32.0",
+    "python-jose[cryptography]>=3.3.0",
+    "authlib>=1.3.2",
+    "argon2-cffi>=23.1.0",
+    "redis>=5.2.0",
+    "httpx>=0.27.2",
+    "itsdangerous>=2.2.0",
+    "greenlet>=3.1.1",
+    "anthropic>=0.40.0",
+    "pandas>=2.2.0",
+    "python-multipart>=0.0.17",
+    "reportlab>=4.2.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.7.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4"]
+ignore = [
+    "B008",   # function-call-in-default-argument — this is FastAPI's own
+              # Depends(...) pattern, not a bug, in every route signature.
+    "UP042",  # replace-str-enum — model enums deliberately use
+              # class Foo(str, enum.Enum), matching how they're verified to
+              # serialize through Pydantic/SQLAlchemy; switching to StrEnum
+              # now is a bulk rename across every model with no functional
+              # benefit at this stage.
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Seed scripts favor dict(key=value, ...) as a readable record syntax over
+# {...} literals, and embed long descriptive strings (lesson content,
+# install commands) that wrapping would make less readable, not more.
+"scripts/*.py" = ["C408", "E501"]

@@ -1,0 +1,69 @@
+# Written for Phase 15 but NOT built or run — no Docker in this dev
+# environment; treat every value below as a starting point to verify, not
+# a tested deployment.
+#
+# Deliberately NOT included here, per Phase 1 §26: Postgres and Redis. Use
+# managed services in production (RDS/Cloud SQL + a managed Redis) rather
+# than stateful containers — this compose file wires only the application
+# tier together. Point DATABASE_URL/REDIS_URL at your managed instances via
+# the .env file this compose reads.
+#
+# The execution service's isolation model (see execution-service/README.md
+# and app/orchestrator.py) requires the gVisor container runtime in
+# production — this compose file alone does not provide that; add
+# `runtime: runsc` to the execution-gateway service once gVisor is
+# installed on the host, or run it on a Kubernetes node pool with a gvisor
+# RuntimeClass instead.
+
+services:
+  traefik:
+    image: traefik:v3.1
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_letsencrypt:/letsencrypt
+
+  core-api:
+    build: ../backend
+    restart: unless-stopped
+    env_file: ../backend/.env
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.core-api.rule=Host(`${API_DOMAIN}`)
+      - traefik.http.routers.core-api.tls.certresolver=letsencrypt
+      - traefik.http.services.core-api.loadbalancer.server.port=8000
+
+  execution-gateway:
+    build: ../execution-service
+    restart: unless-stopped
+    env_file: ../execution-service/.env
+    # runtime: runsc   # uncomment once gVisor is installed — see header note
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.execution.rule=Host(`${EXECUTION_DOMAIN}`)
+      - traefik.http.routers.execution.tls.certresolver=letsencrypt
+      - traefik.http.services.execution.loadbalancer.server.port=8100
+
+  frontend:
+    build: ../frontend
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.frontend.rule=Host(`${APP_DOMAIN}`)
+      - traefik.http.routers.frontend.tls.certresolver=letsencrypt
+      - traefik.http.services.frontend.loadbalancer.server.port=80
+
+volumes:
+  traefik_letsencrypt:

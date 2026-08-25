@@ -1,0 +1,181 @@
+import uuid
+from datetime import UTC, datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import CurrentUser, get_current_user, get_refresh_payload
+from app.core.config import settings
+from app.core.cookies import clear_auth_cookies, set_auth_cookies
+from app.core.db import get_db
+from app.core.security import create_access_token, create_refresh_token
+from app.core.token_store import check_rate_limit, revoke_refresh_token
+from app.schemas.auth import ChangePasswordRequest, LoginRequest, MessageResponse, RegisterRequest, UpdateProfileRequest, UserRead
+from app.services.audit_service import log_event
+from app.services.auth_service import (
+    EmailAlreadyRegisteredError,
+    IncorrectPasswordError,
+    NoPasswordSetError,
+    authenticate_user,
+    change_password,
+    get_display_name,
+    get_user_by_id,
+    get_user_roles,
+    register_user,
+    update_display_name,
+)
+
+router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+async def _enforce_rate_limit(request: Request, scope: str, limit: int) -> None:
+    client_ip = request.client.host if request.client else "unknown"
+    if not await check_rate_limit(scope, client_ip, limit):
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many requests, slow down")
+
+
+@router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+async def register(
+    body: RegisterRequest,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
+    await _enforce_rate_limit(request, "register", settings.rate_limit_register_per_minute)
+
+    try:
+        user = await register_user(db, email=body.email, password=body.password, display_name=body.display_name)
+    except EmailAlreadyRegisteredError as exc:
+        # Deliberately vague — confirming an email is *not* registered would
+        # let an attacker enumerate accounts.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Could not register this account"
+        ) from exc
+
+    access_token = create_access_token(user.id)
+    refresh_token, _, _ = create_refresh_token(user.id)
+    set_auth_cookies(response, access_token, refresh_token, settings.refresh_token_expire_days * 86400)
+
+    client_ip = request.client.host if request.client else None
+    await log_event(db, action="register", resource_type="user", user_id=user.id, ip_address=client_ip)
+
+    roles = await get_user_roles(db, user.id)
+    display_name = await get_display_name(db, user.id)
+    return UserRead(id=user.id, email=user.email, display_name=display_name, is_active=user.is_active, roles=roles)
+
+
+@router.post("/login", response_model=UserRead)
+async def login(
+    body: LoginRequest,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
+    await _enforce_rate_limit(request, "login", settings.rate_limit_login_per_minute)
+    client_ip = request.client.host if request.client else None
+
+    user = await authenticate_user(db, email=body.email, password=body.password)
+    if user is None:
+        # No user_id on a failed attempt — logging the attempted email
+        # would let anyone harvest which addresses are registered, so this
+        # only records that a failure happened from this IP, which is
+        # exactly what brute-force detection needs.
+        await log_event(db, action="login_failed", resource_type="user", ip_address=client_ip)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password")
+
+    access_token = create_access_token(user.id)
+    refresh_token, _, _ = create_refresh_token(user.id)
+    set_auth_cookies(response, access_token, refresh_token, settings.refresh_token_expire_days * 86400)
+
+    await log_event(db, action="login", resource_type="user", user_id=user.id, ip_address=client_ip)
+
+    roles = await get_user_roles(db, user.id)
+    display_name = await get_display_name(db, user.id)
+    return UserRead(id=user.id, email=user.email, display_name=display_name, is_active=user.is_active, roles=roles)
+
+
+@router.post("/refresh", response_model=UserRead)
+async def refresh(
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+    refresh_payload: dict = Depends(get_refresh_payload),
+):
+    """Rotates the refresh token on every use: the old jti is revoked and a
+    new refresh token issued, so a leaked-but-unused-yet token has a single
+    use window rather than remaining valid for its full 30-day life."""
+
+    user_id = uuid.UUID(refresh_payload["sub"])
+    user = await get_user_by_id(db, user_id)
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    old_expires_at = datetime.fromtimestamp(refresh_payload["exp"], tz=UTC)
+    await revoke_refresh_token(refresh_payload["jti"], old_expires_at)
+
+    access_token = create_access_token(user.id)
+    new_refresh_token, _, new_expires_at = create_refresh_token(user.id)
+    set_auth_cookies(response, access_token, new_refresh_token, settings.refresh_token_expire_days * 86400)
+
+    roles = await get_user_roles(db, user.id)
+    display_name = await get_display_name(db, user.id)
+    return UserRead(id=user.id, email=user.email, display_name=display_name, is_active=user.is_active, roles=roles)
+
+
+@router.post("/logout", response_model=MessageResponse)
+async def logout(response: Response, refresh_payload: dict = Depends(get_refresh_payload)):
+    expires_at = datetime.fromtimestamp(refresh_payload["exp"], tz=UTC)
+    await revoke_refresh_token(refresh_payload["jti"], expires_at)
+
+    clear_auth_cookies(response)
+    return MessageResponse(message="Logged out")
+
+
+@router.get("/me", response_model=UserRead)
+async def me(current_user: CurrentUser = Depends(get_current_user)):
+    return UserRead(
+        id=current_user.id,
+        email=current_user.email,
+        display_name=current_user.display_name,
+        is_active=True,
+        roles=current_user.roles,
+    )
+
+
+@router.patch("/me", response_model=UserRead)
+async def update_me(
+    body: UpdateProfileRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await update_display_name(db, current_user.id, body.display_name)
+    roles = await get_user_roles(db, current_user.id)
+    return UserRead(
+        id=current_user.id, email=current_user.email, display_name=body.display_name, is_active=True, roles=roles
+    )
+
+
+@router.post("/change-password", response_model=MessageResponse)
+async def change_my_password(
+    body: ChangePasswordRequest,
+    request: Request,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        await change_password(
+            db, current_user.id, current_password=body.current_password, new_password=body.new_password
+        )
+    except IncorrectPasswordError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect"
+        ) from exc
+    except NoPasswordSetError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This account signs in via OAuth and has no password to change",
+        ) from exc
+
+    client_ip = request.client.host if request.client else None
+    await log_event(db, action="password_changed", resource_type="user", user_id=current_user.id, ip_address=client_ip)
+
+    return MessageResponse(message="Password changed")
