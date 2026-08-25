@@ -2,7 +2,11 @@ import { useCallback, useRef, useState } from 'react'
 import { aiTutorApi } from '@/services/aiTutorApi'
 import type { ChatMessage, CreateSessionPayload } from '@/types/aiTutor'
 
-const AI_TUTOR_WS_BASE = import.meta.env.VITE_API_WS_BASE_URL ?? 'ws://localhost:8000'
+// Derived from VITE_API_BASE_URL (http -> ws, https -> wss) rather than a
+// second env var — the AI Tutor's WebSocket lives on the same backend as
+// the REST API, so there's nothing to independently configure, and no
+// second value to forget to set or let drift out of sync with the first.
+const AI_TUTOR_WS_BASE = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000').replace(/^http/, 'ws')
 
 export function useAiTutor() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
