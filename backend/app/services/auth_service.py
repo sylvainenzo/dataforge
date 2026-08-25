@@ -95,3 +95,15 @@ async def change_password(db: AsyncSession, user_id: uuid.UUID, *, current_passw
 
     user.password_hash = hash_password(new_password)
     await db.commit()
+
+
+async def set_password(db: AsyncSession, user_id: uuid.UUID, *, new_password: str) -> None:
+    """Used by the password-reset flow — unlike change_password, there's no
+    current password to verify: proving identity already happened by way
+    of possessing a valid, unexpired reset token."""
+
+    user = await get_user_by_id(db, user_id)
+    if user is None:
+        raise ValueError(f"User {user_id} not found")
+    user.password_hash = hash_password(new_password)
+    await db.commit()

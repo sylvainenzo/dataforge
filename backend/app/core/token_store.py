@@ -6,17 +6,17 @@ _REVOKED_PREFIX = "revoked_jti:"
 _RATE_LIMIT_PREFIX = "ratelimit:"
 
 
-async def revoke_refresh_token(jti: str, expires_at: datetime) -> None:
-    """Adds a refresh token's jti to a Redis denylist until it would have
-    expired anyway, so Redis self-cleans — this is what makes logout and
-    refresh-token rotation actually revoke access rather than just clearing
-    the client's cookie (Phase 1 §13)."""
+async def revoke_jti(jti: str, expires_at: datetime) -> None:
+    """Adds any JWT's jti to a Redis denylist until it would have expired
+    anyway, so Redis self-cleans. Used for refresh-token rotation/logout
+    (Phase 1 §13) and for single-use tokens like password resets, where
+    "revoked" just means "already used"."""
 
     ttl_seconds = max(1, int((expires_at - datetime.now(UTC)).total_seconds()))
     await redis_client.set(f"{_REVOKED_PREFIX}{jti}", "1", ex=ttl_seconds)
 
 
-async def is_refresh_token_revoked(jti: str) -> bool:
+async def is_jti_revoked(jti: str) -> bool:
     return await redis_client.exists(f"{_REVOKED_PREFIX}{jti}") == 1
 
 

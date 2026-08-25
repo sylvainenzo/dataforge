@@ -25,6 +25,7 @@ def verify_password(password: str, password_hash: str) -> bool:
 class TokenType(StrEnum):
     ACCESS = "access"
     REFRESH = "refresh"
+    RESET_PASSWORD = "reset_password"
 
 
 class InvalidTokenError(Exception):
@@ -60,6 +61,16 @@ def create_refresh_token(user_id: uuid.UUID) -> tuple[str, str, datetime]:
 
     expires_delta = timedelta(days=settings.refresh_token_expire_days)
     token, jti = _create_token(user_id, TokenType.REFRESH, expires_delta)
+    return token, jti, datetime.now(UTC) + expires_delta
+
+
+def create_reset_password_token(user_id: uuid.UUID) -> tuple[str, str, datetime]:
+    """Short-lived, single-use (enforced by revoking the jti immediately
+    after it's consumed — see token_store.revoke_jti). Returns (token,
+    jti, expires_at)."""
+
+    expires_delta = timedelta(minutes=settings.reset_password_token_expire_minutes)
+    token, jti = _create_token(user_id, TokenType.RESET_PASSWORD, expires_delta)
     return token, jti, datetime.now(UTC) + expires_delta
 
 

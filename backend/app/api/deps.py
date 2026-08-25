@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.core.security import InvalidTokenError, TokenType, decode_token
-from app.core.token_store import is_refresh_token_revoked
+from app.core.token_store import is_jti_revoked
 from app.services.auth_service import get_display_name, get_user_by_id, get_user_roles
 
 _CREDENTIALS_ERROR = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -58,6 +58,6 @@ async def get_refresh_payload(refresh_token: str | None = Cookie(default=None)) 
     except InvalidTokenError as exc:
         raise _CREDENTIALS_ERROR from exc
 
-    if await is_refresh_token_revoked(payload["jti"]):
+    if await is_jti_revoked(payload["jti"]):
         raise _CREDENTIALS_ERROR
     return payload

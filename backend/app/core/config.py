@@ -73,5 +73,17 @@ class Settings(BaseSettings):
     dataset_max_upload_mb: int = 50
     certificate_storage_path: str = "storage/certificates"
 
+    # None means password-reset emails can't actually be sent — the
+    # forgot-password endpoint returns a clear 503 rather than silently
+    # doing nothing (same pattern as the unconfigured AI Tutor/OAuth).
+    resend_api_key: str | None = None
+    email_from: str = "DataForge <onboarding@resend.dev>"
+    # Used to build the link inside the reset email (e.g. the Netlify URL
+    # in production) — this backend has no other way to know its own
+    # frontend's address.
+    frontend_url: str = "http://localhost:5180"
+    reset_password_token_expire_minutes: int = 30
+    rate_limit_forgot_password_per_minute: int = 3
+
 
 settings = Settings()

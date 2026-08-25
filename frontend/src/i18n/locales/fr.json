@@ -45,7 +45,18 @@
     "createOne": "En créer un",
     "displayName": "Nom d'affichage",
     "createAccount": "Créer un compte",
-    "haveAccount": "Vous avez déjà un compte ?"
+    "haveAccount": "Vous avez déjà un compte ?",
+    "forgotPassword": "Mot de passe oublié ?",
+    "forgotPasswordTitle": "Réinitialiser votre mot de passe",
+    "forgotPasswordDescription": "Entrez votre e-mail et nous vous enverrons un lien pour réinitialiser votre mot de passe.",
+    "sendResetLink": "Envoyer le lien",
+    "resetLinkSent": "Si cet e-mail est enregistré, un lien de réinitialisation a été envoyé — vérifiez votre boîte de réception.",
+    "backToSignIn": "Retour à la connexion",
+    "resetPasswordTitle": "Choisissez un nouveau mot de passe",
+    "newPassword": "Nouveau mot de passe",
+    "resetPassword": "Réinitialiser le mot de passe",
+    "resetPasswordSuccess": "Votre mot de passe a été réinitialisé. Vous pouvez vous connecter maintenant.",
+    "invalidResetLink": "Ce lien de réinitialisation est invalide ou a expiré."
   },
   "dashboard": {
     "welcome": "Bienvenue",

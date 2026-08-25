@@ -1,8 +1,10 @@
 import { Compass } from 'lucide-react'
 import { lazy } from 'react'
 import { createBrowserRouter } from 'react-router-dom'
+import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { RegisterPage } from '@/features/auth/RegisterPage'
+import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage'
 import { AppLayout } from '@/layouts/AppLayout'
 import { ComingSoonPage } from '@/pages/ComingSoonPage'
 import { RequireAuth } from '@/routes/RequireAuth'
@@ -63,6 +65,8 @@ const PublicPortfolioPage = lazy(() =>
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   { path: '/register', element: <RegisterPage /> },
+  { path: '/forgot-password', element: <ForgotPasswordPage /> },
+  { path: '/reset-password', element: <ResetPasswordPage /> },
   { path: '/certificates/verify', element: <CertificateVerifyPage /> },
   { path: '/certificates/verify/:certificateNumber', element: <CertificateVerifyPage /> },
   { path: '/portfolio/:userId', element: <PublicPortfolioPage /> },

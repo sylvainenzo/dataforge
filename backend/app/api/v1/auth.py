@@ -8,9 +8,25 @@ from app.api.deps import CurrentUser, get_current_user, get_refresh_payload
 from app.core.config import settings
 from app.core.cookies import clear_auth_cookies, set_auth_cookies
 from app.core.db import get_db
-from app.core.security import create_access_token, create_refresh_token
-from app.core.token_store import check_rate_limit, revoke_refresh_token
-from app.schemas.auth import ChangePasswordRequest, LoginRequest, MessageResponse, RegisterRequest, UpdateProfileRequest, UserRead
+from app.core.security import (
+    InvalidTokenError,
+    TokenType,
+    create_access_token,
+    create_refresh_token,
+    create_reset_password_token,
+    decode_token,
+)
+from app.core.token_store import check_rate_limit, is_jti_revoked, revoke_jti
+from app.schemas.auth import (
+    ChangePasswordRequest,
+    ForgotPasswordRequest,
+    LoginRequest,
+    MessageResponse,
+    RegisterRequest,
+    ResetPasswordRequest,
+    UpdateProfileRequest,
+    UserRead,
+)
 from app.services.audit_service import log_event
 from app.services.auth_service import (
     EmailAlreadyRegisteredError,
@@ -19,11 +35,14 @@ from app.services.auth_service import (
     authenticate_user,
     change_password,
     get_display_name,
+    get_user_by_email,
     get_user_by_id,
     get_user_roles,
     register_user,
+    set_password,
     update_display_name,
 )
+from app.services.email_service import EmailDeliveryError, send_password_reset_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -110,7 +129,7 @@ async def refresh(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
     old_expires_at = datetime.fromtimestamp(refresh_payload["exp"], tz=UTC)
-    await revoke_refresh_token(refresh_payload["jti"], old_expires_at)
+    await revoke_jti(refresh_payload["jti"], old_expires_at)
 
     access_token = create_access_token(user.id)
     new_refresh_token, _, new_expires_at = create_refresh_token(user.id)
@@ -124,7 +143,7 @@ async def refresh(
 @router.post("/logout", response_model=MessageResponse)
 async def logout(response: Response, refresh_payload: dict = Depends(get_refresh_payload)):
     expires_at = datetime.fromtimestamp(refresh_payload["exp"], tz=UTC)
-    await revoke_refresh_token(refresh_payload["jti"], expires_at)
+    await revoke_jti(refresh_payload["jti"], expires_at)
 
     clear_auth_cookies(response)
     return MessageResponse(message="Logged out")
@@ -179,3 +198,71 @@ async def change_my_password(
     await log_event(db, action="password_changed", resource_type="user", user_id=current_user.id, ip_address=client_ip)
 
     return MessageResponse(message="Password changed")
+
+
+_FORGOT_PASSWORD_GENERIC_MESSAGE = MessageResponse(
+    message="If that email is registered, a reset link has been sent."
+)
+
+
+@router.post("/forgot-password", response_model=MessageResponse)
+async def forgot_password(
+    body: ForgotPasswordRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    await _enforce_rate_limit(request, "forgot-password", settings.rate_limit_forgot_password_per_minute)
+
+    # Checked before the user lookup, and unconditionally — an existing vs.
+    # non-existing email must produce the exact same response, or the 503
+    # itself becomes a way to enumerate registered accounts.
+    if not settings.resend_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Password reset emails aren't configured on this server yet.",
+        )
+
+    user = await get_user_by_email(db, body.email)
+    if user is not None and user.is_active:
+        token, _, _ = create_reset_password_token(user.id)
+        reset_url = f"{settings.frontend_url}/reset-password?token={token}"
+        try:
+            await send_password_reset_email(
+                user.email, reset_url, expires_in_minutes=settings.reset_password_token_expire_minutes
+            )
+        except EmailDeliveryError:
+            # Still returns the generic message below — surfacing a delivery
+            # failure here would also leak whether the email was registered.
+            pass
+
+    return _FORGOT_PASSWORD_GENERIC_MESSAGE
+
+
+@router.post("/reset-password", response_model=MessageResponse)
+async def reset_password(body: ResetPasswordRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    invalid_link_error = HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST, detail="This reset link is invalid or has expired."
+    )
+
+    try:
+        payload = decode_token(body.token, TokenType.RESET_PASSWORD)
+    except InvalidTokenError as exc:
+        raise invalid_link_error from exc
+
+    if await is_jti_revoked(payload["jti"]):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This reset link has already been used.")
+
+    user_id = uuid.UUID(payload["sub"])
+    user = await get_user_by_id(db, user_id)
+    if user is None or not user.is_active:
+        raise invalid_link_error
+
+    await set_password(db, user_id, new_password=body.new_password)
+
+    expires_at = datetime.fromtimestamp(payload["exp"], tz=UTC)
+    await revoke_jti(payload["jti"], expires_at)
+
+    client_ip = request.client.host if request.client else None
+    await log_event(db, action="password_reset", resource_type="user", user_id=user_id, ip_address=client_ip)
+
+    return MessageResponse(message="Password reset — you can now sign in with your new password.")

@@ -1,6 +1,6 @@
 import { type FormEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ApiError } from '@/lib/api'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -12,7 +12,9 @@ export function LoginPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const login = useLogin()
   const navigate = useNavigate()
+  const location = useLocation()
   const { t } = useTranslation()
+  const resetSuccess = Boolean((location.state as { resetSuccess?: boolean } | null)?.resetSuccess)
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -38,6 +40,12 @@ export function LoginPage() {
           <p className="text-sm text-text-muted">{t('auth.tagline')}</p>
         </div>
 
+        {resetSuccess && (
+          <div className="mb-4 rounded-xl border border-success/30 bg-success-soft p-3 text-center text-sm text-text">
+            {t('auth.resetPasswordSuccess')}
+          </div>
+        )}
+
         <form onSubmit={onSubmit} className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6 shadow-card">
           <Input
             label={t('auth.email')}
@@ -48,15 +56,20 @@ export function LoginPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          <Input
-            label={t('auth.password')}
-            type="password"
-            name="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+          <div>
+            <Input
+              label={t('auth.password')}
+              type="password"
+              name="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <Link to="/forgot-password" className="mt-1.5 inline-block text-xs text-primary hover:underline">
+              {t('auth.forgotPassword')}
+            </Link>
+          </div>
           {formError && <p className="text-sm text-error">{formError}</p>}
           <Button type="submit" disabled={login.isPending} className="mt-1">
             {t('auth.signIn')}
