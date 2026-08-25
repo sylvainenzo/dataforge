@@ -1,4 +1,6 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
+const REFRESH_PATH = '/api/v1/auth/refresh'
+const NO_REFRESH_RETRY_PATHS = new Set([REFRESH_PATH, '/api/v1/auth/login'])
 
 export class ApiError extends Error {
   status: number
@@ -10,8 +12,28 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+// The access-token cookie expires after 15 minutes; the refresh-token
+// cookie lasts 30 days. Without this, every session would silently end
+// after 15 minutes regardless of how recently the person was active — the
+// backend's /auth/refresh endpoint existed but nothing ever called it.
+// Concurrent 401s (e.g. a page firing several requests on mount) share one
+// in-flight refresh instead of each triggering their own.
+let refreshPromise: Promise<boolean> | null = null
+
+function refreshSession(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${API_BASE_URL}${REFRESH_PATH}`, { method: 'POST', credentials: 'include' })
+      .then((res) => res.ok)
+      .catch(() => false)
+      .finally(() => {
+        refreshPromise = null
+      })
+  }
+  return refreshPromise
+}
+
+function rawRequest(path: string, init?: RequestInit): Promise<Response> {
+  return fetch(`${API_BASE_URL}${path}`, {
     ...init,
     credentials: 'include', // send/receive the httpOnly auth cookies
     headers: {
@@ -19,6 +41,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ...init?.headers,
     },
   })
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  let response = await rawRequest(path, init)
+
+  if (response.status === 401 && !NO_REFRESH_RETRY_PATHS.has(path)) {
+    if (await refreshSession()) {
+      response = await rawRequest(path, init)
+    }
+  }
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({ detail: response.statusText }))

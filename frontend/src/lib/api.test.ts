@@ -24,14 +24,39 @@ describe('api client', () => {
   })
 
   it('throws ApiError with the server-provided detail on a non-2xx response', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ detail: 'Incorrect email or password' }), { status: 401 }),
-    )
+    // First call: the original request, 401. Second call: the automatic
+    // refresh attempt this triggers — also fails here, so the original
+    // 401 propagates instead of retrying forever.
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ detail: 'Incorrect email or password' }), { status: 401 }))
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
 
     await expect(api.get('/api/v1/auth/me')).rejects.toMatchObject({
       status: 401,
       message: 'Incorrect email or password',
     })
+  })
+
+  it('retries the original request once after a successful token refresh', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(null, { status: 401 })) // original request
+      .mockResolvedValueOnce(new Response(null, { status: 200 })) // refresh succeeds
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: '1' }), { status: 200 })) // retried request
+
+    await expect(api.get('/api/v1/auth/me')).resolves.toEqual({ id: '1' })
+    expect(vi.mocked(fetch).mock.calls[1][0]).toContain('/api/v1/auth/refresh')
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(3)
+  })
+
+  it('does not attempt a refresh when the login request itself 401s', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ detail: 'Incorrect email or password' }), { status: 401 }),
+    )
+
+    await expect(api.post('/api/v1/auth/login', { email: 'x', password: 'y' })).rejects.toMatchObject({
+      status: 401,
+    })
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(1)
   })
 
   it('resolves undefined on a 204 No Content response', async () => {
